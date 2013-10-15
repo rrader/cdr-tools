@@ -7,3 +7,5 @@ target
 *.war
 *.ear
 .vagrant
+
+deploy/prov/cdr/gen

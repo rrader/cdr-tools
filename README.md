@@ -1,6 +1,11 @@
 cdr-tools
 =========
 
+    local$ cd deploy
+    local$ vagrant up
+
+----------------------------------------
+
 Setting up CDR on Hortonworks Sandbox
 ----------------------------------------
 
