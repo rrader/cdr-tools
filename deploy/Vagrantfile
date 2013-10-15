@@ -1,0 +1,63 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure("2") do |config|
+  config.vm.define :default do |subconf|
+
+    subconf.vm.box = "centos-64-x64"
+    subconf.vm.box_url = "http://puppet-vagrant-boxes.puppetlabs.com/centos-64-x64-vbox4210.box"
+
+    subconf.vm.hostname = "cdr.antigluk.org"
+
+    subconf.vm.provider :virtualbox do |vb|
+      vb.gui = true
+    
+      vb.customize ["modifyvm", :id, "--memory", 1024]
+      vb.customize ["modifyvm", :id, "--rtcuseutc", "on"]
+
+      vb.customize ["modifyvm", :id, "--nictype1", "Am79C973"]
+      vb.customize ["modifyvm", :id, "--nic2", "none"]
+      vb.customize ["modifyvm", :id, "--mouse", "usbtablet"]
+    end
+
+    subconf.vm.provider :virtualbox do |vb|
+      vb.customize ["modifyvm", :id, "--name", "Node Box", "--groups", "/CDR"]
+    end
+
+    subconf.vm.network "private_network", adapter: 3, ip: "192.168.42.100"
+
+    subconf.vm.provision "shell", path: "prov/cdr/setup.sh"
+
+    #subconf.vm.provision :puppet, :options => "--verbose --debug" do |puppet|
+    #  puppet.manifests_path = "manifests"
+    #  puppet.manifest_file  = "sandbox_full.pp"
+    #end
+  end
+
+
+  config.vm.define :hadoop do |subconf|
+
+    subconf.vm.box = "sandbox-hdp2-ga"
+    #subconf.vm.box_url = "http://puppet-vagrant-boxes.puppetlabs.com/centos-64-x64-vbox4210.box"
+
+    subconf.vm.hostname = "sandbox.hortonworks.com"
+
+    subconf.vm.provider :virtualbox do |vb|
+      vb.gui = true
+    
+      vb.customize ["modifyvm", :id, "--memory", 4096]
+      vb.customize ["modifyvm", :id, "--rtcuseutc", "on"]
+
+      vb.customize ["modifyvm", :id, "--nictype1", "Am79C973"]
+      vb.customize ["modifyvm", :id, "--nic2", "none"]
+      vb.customize ["modifyvm", :id, "--mouse", "usbtablet"]
+    end
+
+    subconf.vm.network "private_network", adapter: 3, ip: "192.168.42.101"
+
+    subconf.vm.provider :virtualbox do |vb|
+      vb.customize ["modifyvm", :id, "--name", "Hadoop Box", "--groups", "/CDR"]
+    end
+  end
+
+end
