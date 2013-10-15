@@ -8,4 +8,7 @@ cd ..
 
 mkdir -p deploy/prov/cdr/gen
 cp flume-source/target/flume-cdr-source-*.jar deploy/prov/cdr/gen/
-cp flume-source/setup/* deploy/prov/cdr/gen/
+
+# Up
+cd deploy
+vagrant up
