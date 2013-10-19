@@ -50,7 +50,10 @@ tar zxvf asterisk*
 cd /usr/src/asterisk*
 #for x86: ./configure && make menuselect && make && make install
 ./configure --libdir=/usr/lib64
-make menuselect # ?? can we skip this?
+
+# make menuselect # ?? can we skip this?
+make menuselect.makeopts
+
 make && make install
 
 make samples
