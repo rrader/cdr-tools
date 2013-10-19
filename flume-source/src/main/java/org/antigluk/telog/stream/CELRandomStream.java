@@ -1,22 +1,22 @@
-package org.antigluk.cdr.stream;
+package org.antigluk.telog.stream;
 
-import org.antigluk.cdr.CDR;
-import org.antigluk.cdr.CDRListener;
-import org.antigluk.cdr.RandomPhone;
-import org.antigluk.cdr.Status;
+import org.antigluk.telog.entry.cdr.CDR;
+import org.antigluk.telog.LogEventListener;
+import org.antigluk.telog.RandomPhone;
+import org.antigluk.telog.entry.cdr.Status;
 
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.Random;
 
-public class CDRRandomStream implements CDRStream {
-    private ArrayList<CDRListener> listeners = new ArrayList<CDRListener>();
+public class CELRandomStream implements LogEventStream {
+    private ArrayList<LogEventListener> listeners = new ArrayList<LogEventListener>();
     private boolean terminated = true;
 
     private Random RANDOM = new Random();
 
     @Override
-    public void addListener(CDRListener listener) {
+    public void addListener(LogEventListener listener) {
         listeners.add(listener);
     }
 
@@ -28,9 +28,9 @@ public class CDRRandomStream implements CDRStream {
             public void run() {
                 while(!terminated) {
                     // pull message from somewhere
-                    CDR cdr = new CDR(RandomPhone.nextPhone(), RandomPhone.nextPhone(),
+                    CDR cdr = new CDR(new Date(), RandomPhone.nextPhone(), RandomPhone.nextPhone(),
                             Status.randomStatus(), new Date(), RANDOM.nextInt(300) + 10);
-                    for (CDRListener listener : listeners) {
+                    for (LogEventListener listener : listeners) {
                         listener.onMessage(cdr);
                     }
                     try {

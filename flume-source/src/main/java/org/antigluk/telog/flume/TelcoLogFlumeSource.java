@@ -16,15 +16,15 @@
  * limitations under the License.
  */
 
-package org.antigluk.cdr.flume;
+package org.antigluk.telog.flume;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.antigluk.cdr.CDR;
-import org.antigluk.cdr.CDRListener;
-import org.antigluk.cdr.stream.CDRRandomStream;
+import org.antigluk.telog.LogEntry;
+import org.antigluk.telog.LogEventListener;
+import org.antigluk.telog.stream.LogEventStream;
 import org.apache.flume.Context;
 import org.apache.flume.Event;
 import org.apache.flume.EventDrivenSource;
@@ -38,16 +38,22 @@ import org.slf4j.LoggerFactory;
 /**
  * A Flume Source of CDR Logs
  */
-public class CDRFlumeSource extends AbstractSource
+public abstract class TelcoLogFlumeSource extends AbstractSource
         implements EventDrivenSource, Configurable {
     //
     private static final Logger logger =
-            LoggerFactory.getLogger(CDRFlumeSource.class);
+            LoggerFactory.getLogger(TelcoLogFlumeSource.class);
 
     /**
      * The actual CDR stream
      */
-    private final CDRRandomStream cdrStream = new CDRRandomStream();
+    private final LogEventStream logEventStream;
+
+    protected abstract LogEventStream makeLogEventStream();
+
+    public TelcoLogFlumeSource() {
+        this.logEventStream = makeLogEventStream();
+    }
 
     /**
      * The initialization method for the Source. The context contains all the
@@ -67,13 +73,11 @@ public class CDRFlumeSource extends AbstractSource
         final ChannelProcessor channel = getChannelProcessor();
         final Map<String, String> headers = new HashMap<String, String>();
 
-        CDRListener listener = new CDRListener() {
-            public void onMessage(CDR cdr) {
-                logger.debug(cdr.getFrom_number() + " -> " + cdr.getTo_number());
-
-                headers.put("timestamp", String.valueOf(cdr.getStart_time()));
+        LogEventListener listener = new LogEventListener() {
+            public void onMessage(LogEntry entry) {
+                headers.put("timestamp", String.valueOf(entry.getTimestamp()));
                 try {
-                    Event event = EventBuilder.withBody(cdr.toJSONString().getBytes(), headers);
+                    Event event = EventBuilder.withBody(entry.toJSONString().getBytes(), headers);
                     channel.processEvent(event);
                 } catch (IOException e) {
                     e.printStackTrace();
@@ -81,11 +85,11 @@ public class CDRFlumeSource extends AbstractSource
                 }
             }
         };
-        logger.debug("Setting up CDR Source to stream");
+        logger.debug("Setting up Source to stream");
 
-        cdrStream.addListener(listener);
+        logEventStream.addListener(listener);
 
-        cdrStream.start();
+        logEventStream.start();
         super.start();
     }
 
@@ -94,8 +98,8 @@ public class CDRFlumeSource extends AbstractSource
      */
     @Override
     public void stop() {
-        logger.debug("Shutting down CDR stream...");
-        cdrStream.stop();
+        logger.debug("Shutting down stream...");
+        logEventStream.stop();
         super.stop();
     }
 }

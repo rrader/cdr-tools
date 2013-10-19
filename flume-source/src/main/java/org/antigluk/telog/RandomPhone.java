@@ -1,4 +1,4 @@
-package org.antigluk.cdr;
+package org.antigluk.telog;
 
 import java.text.DecimalFormat;
 import java.util.Random;

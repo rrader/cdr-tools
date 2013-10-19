@@ -1,4 +1,4 @@
-package org.antigluk.cdr;
+package org.antigluk.telog.entry.cdr;
 
 import java.util.Arrays;
 import java.util.Collections;

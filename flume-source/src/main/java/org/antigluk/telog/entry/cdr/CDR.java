@@ -1,12 +1,11 @@
-package org.antigluk.cdr;
+package org.antigluk.telog.entry.cdr;
 
+import org.antigluk.telog.LogEntry;
 import org.json.simple.JSONObject;
 
-import java.io.IOException;
-import java.io.StringWriter;
 import java.util.Date;
 
-public class CDR {
+public class CDR extends LogEntry {
     private String from_number;
     private String to_number;
     private Status status;
@@ -54,7 +53,8 @@ public class CDR {
         return duration;
     }
 
-    public CDR(String from_number, String to_number, Status status, Date start_time, int duration) {
+    public CDR(Date timestamp, String from_number, String to_number, Status status, Date start_time, int duration) {
+        super(timestamp);
         this.from_number = from_number;
         this.to_number = to_number;
         this.status = status;
@@ -62,6 +62,7 @@ public class CDR {
         this.duration = duration;
     }
 
+    @Override
     public JSONObject toJSON() {
         JSONObject obj=new JSONObject();
         obj.put("from", this.from_number);
@@ -72,10 +73,4 @@ public class CDR {
         return obj;
     }
 
-    public String toJSONString() throws IOException {
-        StringWriter out = new StringWriter();
-        this.toJSON().writeJSONString(out);
-        String jsonText = out.toString();
-        return jsonText;
-    }
 }
