@@ -33,9 +33,6 @@ tar zxvf dahdi-linux-complete*
 cd /usr/src/dahdi-linux-complete*
 make && make install && make config
 
-chkconfig dahdi on
-service dahdi start
-
 
 # LibPRI
 wget http://downloads.asterisk.org/pub/telephony/libpri/libpri-1.4-current.tar.gz
@@ -59,7 +56,9 @@ make && make install
 make samples
 make config
 
+chkconfig dahdi on
 chkconfig asterisk on
+service dahdi start
 service asterisk start
 
 iptables -F

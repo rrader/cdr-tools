@@ -7,10 +7,10 @@ Vagrant.configure("2") do |config|
     subconf.vm.box = "centos-64-x64"
     subconf.vm.box_url = "http://puppet-vagrant-boxes.puppetlabs.com/centos-64-x64-vbox4210.box"
 
-    subconf.vm.hostname = "cdr.antigluk.org"
+    subconf.vm.hostname = "node.antigluk.org"
 
     subconf.vm.provider :virtualbox do |vb|
-      vb.gui = true
+      vb.gui = false
     
       vb.customize ["modifyvm", :id, "--memory", 1024]
       vb.customize ["modifyvm", :id, "--rtcuseutc", "on"]
@@ -43,7 +43,7 @@ Vagrant.configure("2") do |config|
     subconf.vm.hostname = "sandbox.hortonworks.com"
 
     subconf.vm.provider :virtualbox do |vb|
-      vb.gui = true
+      vb.gui = false
     
       vb.customize ["modifyvm", :id, "--memory", 4096]
       vb.customize ["modifyvm", :id, "--rtcuseutc", "on"]
