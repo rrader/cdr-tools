@@ -2,7 +2,7 @@
 
 echo "root:42" | chpasswd
 
-test -f /etc/yum.repos.d/hdp.repo || wget -O /etc/yum.repos.d/hdp.repo http://s3.amazonaws.com/dev.hortonworks.com/HDP-2.0.6.0/repos/centos6/hdp.repo
+test -f /etc/yum.repos.d/hdp.repo || wget -O /etc/yum.repos.d/hdp.repo http://private-repo-1.hortonworks.com/HDP/centos6/2.x/updates/2.0.5.0/hdp.repo
 
 # ======== Flume ==========
 
