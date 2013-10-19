@@ -1,5 +1,7 @@
 #!/bin/bash
 
+sleep 90 # 1.5 min
+
 # Creating data folder
 su - hdfs -c "hdfs dfs -mkdir /data"
 su - hdfs -c "hdfs dfs -mkdir /data/cdr"
