@@ -33,15 +33,16 @@ tar zxvf dahdi-linux-complete*
 cd /usr/src/dahdi-linux-complete*
 make && make install && make config
 
-
+cd /usr/src
 # LibPRI
 wget http://downloads.asterisk.org/pub/telephony/libpri/libpri-1.4-current.tar.gz
 tar zxvf libpri*
 cd /usr/src/libpri*
 make && make install
 
+cd /usr/src
 # Asterisk
-yum install uuid-devel libuuid libuuid-devel # for rtp resource module
+yum -y install uuid-devel libuuid libuuid-devel # for rtp resource module
 wget http://downloads.asterisk.org/pub/telephony/asterisk/asterisk-11-current.tar.gz
 tar zxvf asterisk*
 cd /usr/src/asterisk*
