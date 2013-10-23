@@ -16,5 +16,5 @@ Setting up CDR on Hortonworks Sandbox
     local$ scp target/flume-cdr-source-*.jar lvm:/root/cdr/
     local$ scp setup/flume.conf setup/flume-env.sh lvm:/etc/flume/conf/
     
-    sandbox# flume-ng agent -n CDRAgent -c /etc/flume/conf -f /etc/flume/conf/flume.conf
+    sandbox# flume-ng agent -n TelAgent -c /etc/flume/conf -f /etc/flume/conf/flume.conf
     
