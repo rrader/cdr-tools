@@ -3,7 +3,7 @@
 # chkconfig: 345 20 80
 
 DAEMON_PATH="/root/cdr"
-DAEMON="flume-ng agent -n CDRAgent -c /etc/flume/conf -f /etc/flume/conf/flume.conf"
+DAEMON="flume-ng agent -n TelAgent -c /etc/flume/conf -f /etc/flume/conf/flume.conf"
 
 NAME=flume-cdr-agent
 DESC="Flume CDRAgent"
