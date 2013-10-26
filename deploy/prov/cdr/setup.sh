@@ -68,3 +68,12 @@ if [ ! -f /var/PBX.installed ]; then
 
     touch /var/PBX.installed
 fi
+
+
+# ========= SIP PHONE ===========
+yum install -y opal-devel ptlib-devel git
+
+cd /usr/src
+git clone https://github.com/tmakkonen/sipcmd.git
+cd sipcmd
+make
