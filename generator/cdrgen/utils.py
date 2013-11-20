@@ -1,4 +1,5 @@
 from collections import namedtuple
+from datetime import datetime
 import random
 
 COUNTRIES = {"UA" : "380"}
@@ -8,6 +9,7 @@ NAMES = ["Jayne", "Cobb", "Kaylee", "Frye", "Hoban", "Wash", "Washburne", "Zoe",
          "River", "Tam", "Simon", "Tam", "Malcolm", "Reynolds", "Inara", "Serra"]
 
 phonebook_entry = namedtuple("PhonebookEntry", ["name", "number"])
+cdr = namedtuple("CDR", ["src", "dst", "start", "answer", "end"])
 
 
 def phonebook_item_generator():
@@ -43,3 +45,15 @@ def asterisk_like(src, dst, start, answer, end):
         disposition = "ANSWERED" if random.random() > 0.9 else "BUSY"
         return (account_code, src.number, dst.number, dcontext, clid, channel, dst_channel, last_app, last_data, start,
                answer, end, duration, bill_sec, disposition, amaflags, user_field, unique_id)
+
+
+def csv_to_cdr(csv):
+    return cdr(src=csv[1], dst=csv[2], start=int(csv[9]), answer=int(csv[10]), end=int(csv[11]))
+
+
+def time_of_day(time):
+    return time - (time//60//60//24)*60*60*24
+
+
+def day_of_week(time):
+    return datetime.fromtimestamp(time).weekday()

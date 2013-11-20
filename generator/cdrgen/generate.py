@@ -1,9 +1,9 @@
 import csv
 from io import StringIO
-from queue import Queue
+import queue
 import threading
 from cdrgen.sources import UniformSource
-from cdrgen.utils import asterisk_like
+from cdrgen.utils import asterisk_like, csv_to_cdr, time_of_day
 
 
 class CDRStream(threading.Thread):
@@ -12,7 +12,7 @@ class CDRStream(threading.Thread):
         self.output = StringIO()
         self.writer = csv.writer(self.output, delimiter=",", quoting=csv.QUOTE_ALL)
         self.source = source
-        self.queue = Queue()
+        self.queue = queue.Queue()
         super(CDRStream, self).__init__()
 
     def run(self):
@@ -23,23 +23,12 @@ class CDRStream(threading.Thread):
         return self
 
     def __next__(self):
-        cdr = self.queue.get()
+        try:
+            cdr = self.queue.get(timeout=1)
+        except queue.Empty:
+            raise StopIteration
         self.writer.writerow(self.formatter(*cdr))
         val = self.output.getvalue().strip()
         self.output.truncate(0)
         self.output.seek(0)
         return val
-
-
-if __name__ == "__main__":
-    s = CDRStream(asterisk_like, UniformSource(0, 24*60*60, rate=0.005))
-    s.start()
-    hours = [0 for x in range(24)]
-    file = StringIO()
-    for x in s:
-        file.write(x)
-
-    file.seek(0)
-    reader = csv.reader(file, delimiter=',')
-    for line in reader:
-        print(line)
