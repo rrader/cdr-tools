@@ -1,29 +1,9 @@
-from collections import namedtuple
 import csv
 from io import StringIO
 from queue import Queue
-import random
 import threading
 from cdrgen.sources import UniformSource
-
-
-def asterisk_like(src, dst, start, answer, end):
-    """Returns asterisk-like fields of CDR"""
-    account_code = ""
-    dcontext = "dcont"
-    channel = dst_channel = "SIP/????"
-    last_app = "Dial"
-    last_data = "SIP/?????,??,??"
-    amaflags = "DOCUMENTATION"
-    user_field = "????"
-    unique_id = ""
-    while True:
-        clid = '{} <{}>'.format(src.name, src.number)
-        duration = end - start
-        bill_sec = end - answer
-        disposition = "ANSWERED" if random.random() > 0.9 else "BUSY"
-        return (account_code, src.number, dst.number, dcontext, clid, channel, dst_channel, last_app, last_data, start,
-               answer, end, duration, bill_sec, disposition, amaflags, user_field, unique_id)
+from cdrgen.utils import asterisk_like
 
 
 class CDRStream(threading.Thread):
@@ -54,5 +34,12 @@ class CDRStream(threading.Thread):
 if __name__ == "__main__":
     s = CDRStream(asterisk_like, UniformSource(0, 24*60*60, rate=0.005))
     s.start()
+    hours = [0 for x in range(24)]
+    file = StringIO()
     for x in s:
-        print(x)
+        file.write(x)
+
+    file.seek(0)
+    reader = csv.reader(file, delimiter=',')
+    for line in reader:
+        print(line)
