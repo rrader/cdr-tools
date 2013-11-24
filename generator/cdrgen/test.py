@@ -1,10 +1,14 @@
 import csv
+import datetime
 from io import StringIO
+from matplotlib.ticker import FuncFormatter
 import numpy as np
+import scipy
 from cdrgen.generate import CDRStream
-from cdrgen.sources import UniformSource, UserProfileSource, UserProfile
-from cdrgen.utils import asterisk_like, csv_to_cdr, time_of_day, day_of_week
+from cdrgen.sources import UniformSource, UserProfileSource, UserProfile, UserProfileChangeBehaviorSource
+from cdrgen.utils import asterisk_like, csv_to_cdr, time_of_day, day_of_week, window, grouper
 import matplotlib.pyplot as plt
+from sklearn.neighbors import KNeighborsRegressor
 
 def test(source):
     s = CDRStream(asterisk_like, source)
@@ -35,39 +39,100 @@ users = {}
 ALARM_THRESHOLD = 0.5
 HISTORY = 4  # in weeks
 # (MIN_THRESHOLD - 1/(HISTORY+1))/MIN_THRESHOLD < ALARM_THRESHOLD
-MIN_THRESHOLD = 1/(1+HISTORY-ALARM_THRESHOLD-ALARM_THRESHOLD*HISTORY)
+#MIN_THRESHOLD = 1/(1+HISTORY-ALARM_THRESHOLD-ALARM_THRESHOLD*HISTORY)
+MIN_THRESHOLD = 0.01
+CURRENT_WINDOW = 5 # to approximate current frequency
+APPROX_WINDOW = 1  # to approximate weekly frequency
+TIME_DISCRETIZATION = 60*60
+
+def poisson_interval(k, alpha=0.05):
+    """
+    uses chisquared info to get the poisson interval. Uses scipy.stats
+    (imports in function).
+    """
+    from scipy.stats import chi2
+    a = alpha
+    low, high = (chi2.ppf(a/2, 2*k) / 2, chi2.ppf(1-a/2, 2*k + 2) / 2)
+    if k == 0:
+        low = 0.0
+    return low, high
 
 class Pattern(object):
     # TODO: replace history with one pattern (and maintain with data + (old-new)/history)
     def __init__(self, user):
         self.src = user
-        self.data = np.zeros(shape=(HISTORY + 1, 7, 24))  # patterns 24x7 (history and one current)
+        self.data = np.zeros(shape=(HISTORY, 7, 24))  # patterns 24x7 (history and one current)
+        self.current = np.zeros(CURRENT_WINDOW)
+        self.week_history = np.zeros(shape=(7, (24*60*60)//(TIME_DISCRETIZATION//APPROX_WINDOW)))
         self.last_day_of_week = 0
         self.weeks = 0
 
+    def extract_week_history(self):
+        ## smooth
+        #for item in window(self.week_history, APPROX_WINDOW+1):
+        #    pass
+        week = np.ones(shape=(7, 24))*MIN_THRESHOLD
+        for weekday in range(7):
+            for i,item in enumerate(grouper(APPROX_WINDOW, self.week_history[weekday])):
+                week[weekday, i] += sum(item)
+        return week
+
     def maintain(self, cdr):
-        hour = time_of_day(cdr.start)//60//60
+        """
+        Maintaining should be continuous
+        Calls have to be sorted by cdr.start time
+        """
+        time = time_of_day(cdr.start)//(TIME_DISCRETIZATION//APPROX_WINDOW)
         day = day_of_week(cdr.start)
         if self.last_day_of_week != day and day == 0:  # week switched
             self.data = np.roll(self.data, 1, axis=0)
-            self.data[0] = np.ones(shape=(7, 24))*MIN_THRESHOLD
-            #self.data[0] = np.ones(shape=(7, 24)) * 0.001
+            self.data[0] = self.extract_week_history()
+            self.week_history = np.zeros(shape=(7, (24*60*60)//(TIME_DISCRETIZATION//APPROX_WINDOW)))
             self.weeks += 1
-        self.data[0, day, hour] += 1
+        self.week_history[day, time] += 1  # for average frequency
         self.last_day_of_week = day
 
+        self.current = np.roll(self.current, 1)  # for instantaneous frequency
+        self.current[0] = cdr.start
+        #print(self.current)
+
+    #def is_conform(self, cdr):
+    #    # FIXME: pattern should no check conforming, it's another task
+    #    hour = time_of_day(cdr.start)//60//60
+    #    day = day_of_week(cdr.start)
+    #    freq = np.interp(time_of_day(cdr.start), [x*60*60 for x in range(24)],
+    #                     self.get_pattern()[day])
+    #
+    #    test = self.data.copy()
+    #    test[0, day, hour] += 1
+    #
+    #    current_freq = np.interp(time_of_day(cdr.start), [x*60*60 for x in range(24)],
+    #                     (sum(test)/(HISTORY+1))[day])
+    #    diff = ((current_freq - freq) / freq)
+    #
+    #    if (diff > ALARM_THRESHOLD):
+    #        print(current_freq, freq)
+    #    return diff <= ALARM_THRESHOLD
     def is_conform(self, cdr):
+        # FIXME: pattern should no check conforming, it's another task
         hour = time_of_day(cdr.start)//60//60
         day = day_of_week(cdr.start)
-        test = self.data.copy()
-        test[0, day, hour] += 1
-        freq = self.get_pattern()[day, hour]
-        current_freq = (sum(test)/(HISTORY+1))[day, hour]
-        #if abs(freq - MIN_THRESHOLD) < 0.01:
-        #print(freq, current_freq)
-        diff = (current_freq - freq) / freq
+        freq = np.interp(time_of_day(cdr.start), [x*60*60 for x in range(24)],
+                         self.get_pattern()[day])
 
-        return diff <= ALARM_THRESHOLD
+        current = np.roll(self.current, 1)
+        current[0] = cdr.start
+        #current_freq = (len(current)*TIME_DISCRETIZATION) / (current.max() - current.min())
+        current_freq = np.interp(time_of_day(cdr.start), [x*60*60 for x in range(24)],
+                         (self.week_history)[day])
+        limits = scipy.stats.poisson.interval(0.997, [freq])
+
+        #if not (limits[0] <= current_freq <= limits[1]):
+        #    print(current.max() - current.min(), freq, current_freq, limits)
+        #return (limits[0] <= current_freq <= limits[1])
+        if not (current_freq <= max(1.0, limits[1])):
+            print(current.max() - current.min(), freq, limits[1], current_freq)
+        return (current_freq <= max(1.0, limits[1]))
 
     def is_converged(self, cdr):
         return self.weeks >= HISTORY  # FIXME
@@ -77,6 +142,29 @@ class Pattern(object):
 
     def get_pattern(self):
         return sum(self.data[1:])/HISTORY
+
+    def plot(self):
+        row_labels = list('MTWTFSS')
+        hours = list('0123456789AB')
+        column_labels = ["{}am".format(x) for x in hours] + \
+              ["{}pm".format(x) for x in hours]
+
+        data = self.get_pattern()
+        fig, ax = plt.subplots()
+        heatmap = ax.pcolor(data.transpose(), cmap=plt.cm.Oranges)
+
+        # put the major ticks at the middle of each cell
+        ax.set_xticks(np.arange(data.shape[0])+0.5, minor=False)
+        ax.set_yticks(np.arange(data.shape[1])+0.5, minor=False)
+
+        # want a more natural, table-like display
+        ax.invert_yaxis()
+        ax.xaxis.tick_top()
+
+        ax.set_xticklabels(row_labels, minor=False)
+        ax.set_yticklabels(column_labels, minor=False)
+        plt.show()
+
 
 def pattern(source):
     s = CDRStream(asterisk_like, source)
@@ -89,25 +177,96 @@ def pattern(source):
         if pattern.is_converged(cdr) and not pattern.is_conform(cdr):
             pattern.alarm(cdr)
         pattern.maintain(cdr)
-    print(users)
+
+    list(users.items())[0][1].plot()
 
 
 def test_uniform():
     test(UniformSource(0, 24*60*60, rate=0.1))
 
-
 def test_daily():
+    # Авторегрессионное интегрированное скользящее среднее
+    # https://docs.google.com/viewer?url=http%3A%2F%2Fjmlda.org%2Fpapers%2Fdoc%2F2011%2Fno1%2FFadeevEtAl2011Autoreg.pdf
     h = lambda x: x*60*60  # hour
     rates = [[(h(0.0),  9.74e-7),   # (1/(9.5*60*60))/30, once per month (10.5 is period within day)
               (h(6.5),  5.5e-5),  # 1./(60*60)/5 once per 5 hours
               (h(7.5),  2.7e-4),  # 1./(60*60) once per hour
-              (h(8.5),  1.1e-3),  # 4/(60*60) 4 times per hour
+              (h(8.5),  3.1e-3),  # 4/(60*60) 4 times per hour
               (h(18.0), 9.25e-5), # 1./(3*60*60) once per hour
               (h(21.0), 9.74e-7),
               (h(24.0),  0)]
             ]*7
+
+    rates2 = [[(h(0.0),  9.74e-7),   # (1/(9.5*60*60))/30, once per month (10.5 is period within day)
+              (h(6.5),  5.5e-5),  # 1./(60*60)/5 once per 5 hours
+              (h(7.5),  2.7e-4),  # 1./(60*60) once per hour
+              (h(8.5),  3.1e-3),  # 4/(60*60) 4 times per hour
+              (h(18.0), 9.25e-4), # 1./(3*60*60) once per hour
+              (h(21.0), 9.74e-7),
+              (h(24.0),  0)]
+            ]*7
     p = UserProfile(rates, 10, 0.1)
-    pattern(UserProfileSource(0, 24*60*60*7*4*3, profile=p))
+    p2 = UserProfile(rates2, 10, 0.1)
+    #pattern(UserProfileSource(0, 24*60*60*7*4*6, profile=p))
+    pattern(UserProfileChangeBehaviorSource(0, 24*60*60*7*4*6, profile=p, profile2=p2, when_to_change=24*60*60*7*4*3))
+
+#def to_time(y, position):
+#    return datetime.datetime.fromtimestamp(y).strftime("%H:%M")
+#
+#def to_dur(y, position):
+#    return "{:.1f}m".format(y/60)
+#
+#
+#def sklearn_test():
+#    h = lambda x: x*60*60  # hour
+#    rates = [[(h(0.0),  9.74e-7),   # (1/(9.5*60*60))/30, once per month (10.5 is period within day)
+#              (h(6.5),  5.5e-5),  # 1./(60*60)/5 once per 5 hours
+#              (h(7.5),  2.7e-4),  # 1./(60*60) once per hour
+#              (h(8.5),  1.1e-3),  # 4/(60*60) 4 times per hour
+#              (h(18.0), 9.25e-5), # 1./(3*60*60) once per hour
+#              (h(21.0), 9.74e-7),
+#              (h(24.0),  0)]
+#            ]*7
+#
+#    rates2 = [[(h(0.0),  9.74e-7),   # (1/(9.5*60*60))/30, once per month (10.5 is period within day)
+#              (h(6.5),  5.5e-5),  # 1./(60*60)/5 once per 5 hours
+#              (h(7.5),  2.7e-4),  # 1./(60*60) once per hour
+#              (h(8.5),  1.1e-3),  # 4/(60*60) 4 times per hour
+#              (h(18.0), 9.25e-3), # 1./(3*60*60) once per hour
+#              (h(21.0), 9.74e-7),
+#              (h(24.0),  0)]
+#            ]*7
+#    p = UserProfile(rates, 10, 0.1)
+#    #p2 = UserProfile(rates2, 10, 0.1)
+#    #pattern(UserProfileSource(0, 24*60*60*7*4*12, profile=p))
+#    #source = UserProfileChangeBehaviorSource(0, 24*60*60*7*4*1, profile=p, profile2=p2, when_to_change=24*60*60*7*4*6)
+#    source = UserProfileSource(0, 24*60*60*3, profile=p)
+#    s = CDRStream(asterisk_like, source)
+#    s.start()
+#    x = []
+#    y = []
+#    prev = 0
+#    for st in s:
+#        cdr = csv_to_cdr(list(csv.reader(StringIO(st), delimiter=','))[0])
+#        y.append(cdr.start - prev)
+#        if cdr.start-prev == 0:
+#            print("123")
+#        x.append([cdr.start])
+#        prev = cdr.start
+#
+#    plt.gca().xaxis.set_major_formatter(FuncFormatter(to_time))
+#    plt.gca().yaxis.set_major_formatter(FuncFormatter(to_dur))
+#
+#    nr = KNeighborsRegressor(n_neighbors=1000, weights = 'distance')
+#    nr.fit(x, y)
+#    x2 = []
+#    y2 = []
+#    for i in range(0, prev+60*60*24, 15):
+#        x2.append(i)
+#        y2.append(nr.predict([i])[0])
+#    plt.plot(x,y, color="r")
+#    plt.plot(x2,y2, color="g")
+#    plt.show()
 
 if __name__ == "__main__":
     test_daily()

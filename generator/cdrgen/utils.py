@@ -1,6 +1,8 @@
 from collections import namedtuple
 from datetime import datetime
+from itertools import islice
 import random
+import itertools
 
 COUNTRIES = {"UA" : "380"}
 CODES = ["000"]
@@ -57,3 +59,22 @@ def time_of_day(time):
 
 def day_of_week(time):
     return datetime.fromtimestamp(time).weekday()
+
+def window(seq, n=3):
+    "Returns a sliding window (of width n) over data from the iterable"
+    it = iter(seq)
+    result = tuple(islice(it, (n+1)//2))
+    if len(result) > 0:
+        yield result
+    for elem in it:
+        result = result[1 if len(result)==n else 0:] + (elem,)
+        yield result
+    result = result[1:]
+    while len(result) >= (n+1)//2:
+        yield result
+        result = result[1:]
+
+def grouper(n, iterable, fillvalue=None):
+    "grouper(3, 'ABCDEFG', 'x') --> ABC DEF Gxx"
+    args = [iter(iterable)] * n
+    return itertools.zip_longest(*args, fillvalue=fillvalue)

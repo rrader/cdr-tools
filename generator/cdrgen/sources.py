@@ -1,6 +1,7 @@
 from itertools import takewhile, dropwhile
 import random
 from cdrgen.utils import phonebook_item_generator, time_of_day, day_of_week
+import numpy as np
 
 POOL_NUMBER = 100
 _gen = phonebook_item_generator()
@@ -62,7 +63,8 @@ class UserProfileSource(object):
     def rate(self):
         day_time = time_of_day(self.time)
         week_day = day_of_week(day_time)
-        return list(takewhile(lambda m: m[0] <= day_time, self.rates[week_day]))[-1][1]
+        return np.interp(day_time, [x[0] for x in self.rates[week_day]], [x[1] for x in self.rates[week_day]])
+        #return list(takewhile(lambda m: m[0] <= day_time, self.rates[week_day]))[-1][1]
 
     def random_threshold(self):
         day_time = time_of_day(self.time)
@@ -95,3 +97,15 @@ class UserProfileSource(object):
         else:
             dst = random.choice(PHONE_BOOK)
         return self.my_phone, dst, start, answer, end
+
+
+class UserProfileChangeBehaviorSource(UserProfileSource):
+    def __init__(self, start_time, duration, profile, profile2, when_to_change):
+        self.profile2 = profile2
+        self.when_to_change = when_to_change
+        super().__init__(start_time, duration, profile)
+
+    def step(self):
+        super().step()
+        if self.time >= self.when_to_change:
+            self.rates = self.profile2.rates
