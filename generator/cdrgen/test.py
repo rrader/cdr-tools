@@ -6,7 +6,7 @@ import numpy as np
 import scipy
 from cdrgen.generate import CDRStream
 from cdrgen.sources import UniformSource, UserProfileSource, UserProfile, UserProfileChangeBehaviorSource
-from cdrgen.utils import asterisk_like, csv_to_cdr, time_of_day, day_of_week, window, grouper
+from cdrgen.utils import asterisk_like, csv_to_cdr, time_of_day, day_of_week, window, grouper, RATES_1, it_merge, RATES_2
 import matplotlib.pyplot as plt
 from sklearn.neighbors import KNeighborsRegressor
 
@@ -37,10 +37,10 @@ def test(source):
 
 users = {}
 ALARM_THRESHOLD = 0.5
-HISTORY = 4  # in weeks
+HISTORY = 6  # in weeks
 # (MIN_THRESHOLD - 1/(HISTORY+1))/MIN_THRESHOLD < ALARM_THRESHOLD
 #MIN_THRESHOLD = 1/(1+HISTORY-ALARM_THRESHOLD-ALARM_THRESHOLD*HISTORY)
-MIN_THRESHOLD = 0.01
+MIN_THRESHOLD = 0.
 CURRENT_WINDOW = 5 # to approximate current frequency
 APPROX_WINDOW = 1  # to approximate weekly frequency
 TIME_DISCRETIZATION = 60*60
@@ -94,45 +94,22 @@ class Pattern(object):
 
         self.current = np.roll(self.current, 1)  # for instantaneous frequency
         self.current[0] = cdr.start
-        #print(self.current)
 
-    #def is_conform(self, cdr):
-    #    # FIXME: pattern should no check conforming, it's another task
-    #    hour = time_of_day(cdr.start)//60//60
-    #    day = day_of_week(cdr.start)
-    #    freq = np.interp(time_of_day(cdr.start), [x*60*60 for x in range(24)],
-    #                     self.get_pattern()[day])
-    #
-    #    test = self.data.copy()
-    #    test[0, day, hour] += 1
-    #
-    #    current_freq = np.interp(time_of_day(cdr.start), [x*60*60 for x in range(24)],
-    #                     (sum(test)/(HISTORY+1))[day])
-    #    diff = ((current_freq - freq) / freq)
-    #
-    #    if (diff > ALARM_THRESHOLD):
-    #        print(current_freq, freq)
-    #    return diff <= ALARM_THRESHOLD
     def is_conform(self, cdr):
         # FIXME: pattern should no check conforming, it's another task
-        hour = time_of_day(cdr.start)//60//60
         day = day_of_week(cdr.start)
         freq = np.interp(time_of_day(cdr.start), [x*60*60 for x in range(24)],
                          self.get_pattern()[day])
 
         current = np.roll(self.current, 1)
         current[0] = cdr.start
-        #current_freq = (len(current)*TIME_DISCRETIZATION) / (current.max() - current.min())
         current_freq = np.interp(time_of_day(cdr.start), [x*60*60 for x in range(24)],
                          (self.week_history)[day])
         limits = scipy.stats.poisson.interval(0.997, [freq])
 
-        #if not (limits[0] <= current_freq <= limits[1]):
-        #    print(current.max() - current.min(), freq, current_freq, limits)
-        #return (limits[0] <= current_freq <= limits[1])
         if not (current_freq <= max(1.0, limits[1])):
             print(current.max() - current.min(), freq, limits[1], current_freq)
-        return (current_freq <= max(1.0, limits[1]))
+        return current_freq <= max(1.0, limits[1])
 
     def is_converged(self, cdr):
         return self.weeks >= HISTORY  # FIXME
@@ -151,7 +128,7 @@ class Pattern(object):
 
         data = self.get_pattern()
         fig, ax = plt.subplots()
-        heatmap = ax.pcolor(data.transpose(), cmap=plt.cm.Oranges)
+        heatmap = ax.pcolor(data.transpose(), cmap=plt.cm.Blues)
 
         # put the major ticks at the middle of each cell
         ax.set_xticks(np.arange(data.shape[0])+0.5, minor=False)
@@ -177,8 +154,10 @@ def pattern(source):
         if pattern.is_converged(cdr) and not pattern.is_conform(cdr):
             pattern.alarm(cdr)
         pattern.maintain(cdr)
+    #print(users)
 
-    list(users.items())[0][1].plot()
+    #list(users.items())[0][1].plot()
+    #list(users.items())[1][1].plot()
 
 
 def test_uniform():
@@ -187,86 +166,13 @@ def test_uniform():
 def test_daily():
     # Авторегрессионное интегрированное скользящее среднее
     # https://docs.google.com/viewer?url=http%3A%2F%2Fjmlda.org%2Fpapers%2Fdoc%2F2011%2Fno1%2FFadeevEtAl2011Autoreg.pdf
-    h = lambda x: x*60*60  # hour
-    rates = [[(h(0.0),  9.74e-7),   # (1/(9.5*60*60))/30, once per month (10.5 is period within day)
-              (h(6.5),  5.5e-5),  # 1./(60*60)/5 once per 5 hours
-              (h(7.5),  2.7e-4),  # 1./(60*60) once per hour
-              (h(8.5),  3.1e-3),  # 4/(60*60) 4 times per hour
-              (h(18.0), 9.25e-5), # 1./(3*60*60) once per hour
-              (h(21.0), 9.74e-7),
-              (h(24.0),  0)]
-            ]*7
-
-    rates2 = [[(h(0.0),  9.74e-7),   # (1/(9.5*60*60))/30, once per month (10.5 is period within day)
-              (h(6.5),  5.5e-5),  # 1./(60*60)/5 once per 5 hours
-              (h(7.5),  2.7e-4),  # 1./(60*60) once per hour
-              (h(8.5),  3.1e-3),  # 4/(60*60) 4 times per hour
-              (h(18.0), 9.25e-4), # 1./(3*60*60) once per hour
-              (h(21.0), 9.74e-7),
-              (h(24.0),  0)]
-            ]*7
-    p = UserProfile(rates, 10, 0.1)
-    p2 = UserProfile(rates2, 10, 0.1)
-    #pattern(UserProfileSource(0, 24*60*60*7*4*6, profile=p))
-    pattern(UserProfileChangeBehaviorSource(0, 24*60*60*7*4*6, profile=p, profile2=p2, when_to_change=24*60*60*7*4*3))
-
-#def to_time(y, position):
-#    return datetime.datetime.fromtimestamp(y).strftime("%H:%M")
-#
-#def to_dur(y, position):
-#    return "{:.1f}m".format(y/60)
-#
-#
-#def sklearn_test():
-#    h = lambda x: x*60*60  # hour
-#    rates = [[(h(0.0),  9.74e-7),   # (1/(9.5*60*60))/30, once per month (10.5 is period within day)
-#              (h(6.5),  5.5e-5),  # 1./(60*60)/5 once per 5 hours
-#              (h(7.5),  2.7e-4),  # 1./(60*60) once per hour
-#              (h(8.5),  1.1e-3),  # 4/(60*60) 4 times per hour
-#              (h(18.0), 9.25e-5), # 1./(3*60*60) once per hour
-#              (h(21.0), 9.74e-7),
-#              (h(24.0),  0)]
-#            ]*7
-#
-#    rates2 = [[(h(0.0),  9.74e-7),   # (1/(9.5*60*60))/30, once per month (10.5 is period within day)
-#              (h(6.5),  5.5e-5),  # 1./(60*60)/5 once per 5 hours
-#              (h(7.5),  2.7e-4),  # 1./(60*60) once per hour
-#              (h(8.5),  1.1e-3),  # 4/(60*60) 4 times per hour
-#              (h(18.0), 9.25e-3), # 1./(3*60*60) once per hour
-#              (h(21.0), 9.74e-7),
-#              (h(24.0),  0)]
-#            ]*7
-#    p = UserProfile(rates, 10, 0.1)
-#    #p2 = UserProfile(rates2, 10, 0.1)
-#    #pattern(UserProfileSource(0, 24*60*60*7*4*12, profile=p))
-#    #source = UserProfileChangeBehaviorSource(0, 24*60*60*7*4*1, profile=p, profile2=p2, when_to_change=24*60*60*7*4*6)
-#    source = UserProfileSource(0, 24*60*60*3, profile=p)
-#    s = CDRStream(asterisk_like, source)
-#    s.start()
-#    x = []
-#    y = []
-#    prev = 0
-#    for st in s:
-#        cdr = csv_to_cdr(list(csv.reader(StringIO(st), delimiter=','))[0])
-#        y.append(cdr.start - prev)
-#        if cdr.start-prev == 0:
-#            print("123")
-#        x.append([cdr.start])
-#        prev = cdr.start
-#
-#    plt.gca().xaxis.set_major_formatter(FuncFormatter(to_time))
-#    plt.gca().yaxis.set_major_formatter(FuncFormatter(to_dur))
-#
-#    nr = KNeighborsRegressor(n_neighbors=1000, weights = 'distance')
-#    nr.fit(x, y)
-#    x2 = []
-#    y2 = []
-#    for i in range(0, prev+60*60*24, 15):
-#        x2.append(i)
-#        y2.append(nr.predict([i])[0])
-#    plt.plot(x,y, color="r")
-#    plt.plot(x2,y2, color="g")
-#    plt.show()
+    TIME = 24*60*60*7*4*6
+    p1 = UserProfileSource(0, TIME, profile=UserProfile(RATES_1, 10, 0.1))
+    p2 = UserProfileSource(0, TIME, profile=UserProfile(RATES_2, 10, 0.1))
+    #print(RATES_1)
+    #p2 = UserProfile(rates2, 10, 0.1)
+    pattern(it_merge(p1, p2))
+    #UserProfileChangeBehaviorSource(0, 24*60*60*7*4*6, profile=p, profile2=p2, when_to_change=24*60*60*7*4*3)
 
 if __name__ == "__main__":
     test_daily()

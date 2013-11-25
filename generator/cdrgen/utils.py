@@ -13,6 +13,36 @@ NAMES = ["Jayne", "Cobb", "Kaylee", "Frye", "Hoban", "Wash", "Washburne", "Zoe",
 phonebook_entry = namedtuple("PhonebookEntry", ["name", "number"])
 cdr = namedtuple("CDR", ["src", "dst", "start", "answer", "end"])
 
+_h = lambda x: x*60*60  # hour
+
+RATES_1 = [[(_h(0.0),  (1/(9.5*60*60))/30),   # (1/(9.5*60*60))/30, once per month (10.5 is period within day)
+            (_h(6.5),  1./(60*60)/5),  # 1./(60*60)/5 once per 5 hours
+            (_h(7.5),  1./(60*60)),  # 1./(60*60) once per hour
+            (_h(8.5),  12./(60*60)),  # 4/(60*60) 4 times per hour
+            (_h(18.0), 1./(3*60*60)), # 1./(3*60*60) once per hour
+            (_h(21.0), (1/(9.5*60*60))/30),
+            (_h(24.0),  0)]
+          ]*5 + \
+            [[(_h(0.0),  9.74e-7),
+              (_h(8.5),  1./(60*60)),
+              (_h(18.5),  9.74e-7),
+            ]
+          ]*2
+
+RATES_2 = [[(_h(0.0),  (1/(11.5*60*60))/30),   # (1/(9.5*60*60))/30, once per month (10.5 is period within day)
+            (_h(6.5),  1./(5*60*60)),  # 1./(60*60)/5 once per 5 hours
+            (_h(7.5),  1./(60*60)),  # 1./(60*60) once per hour
+            (_h(8.5),  1./(10*60*60)),  # 4/(60*60) 4 times per hour
+            (_h(18.0), 2./(60*60)), # 1./(3*60*60) once per hour
+            (_h(19.0), (1/(11.5*60*60))),
+            (_h(24.0), 0.)]
+          ]*5 + \
+            [[(_h(0.0),  (1/(9.5*60*60))/30),
+              (_h(8.5),  1./(60*60)),
+              (_h(18.5),  (1/(9.5*60*60))/30),
+            ]
+          ]*2
+
 
 def phonebook_item_generator():
     """Generates unique phone number"""
@@ -78,3 +108,9 @@ def grouper(n, iterable, fillvalue=None):
     "grouper(3, 'ABCDEFG', 'x') --> ABC DEF Gxx"
     args = [iter(iterable)] * n
     return itertools.zip_longest(*args, fillvalue=fillvalue)
+
+
+def it_merge(*iterators):
+    for values in zip(*iterators):
+        for value in values:
+            yield value

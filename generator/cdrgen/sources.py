@@ -1,11 +1,19 @@
-from itertools import takewhile, dropwhile
+from itertools import dropwhile
 import random
-from cdrgen.utils import phonebook_item_generator, time_of_day, day_of_week
+
 import numpy as np
+
+from cdrgen.utils import phonebook_item_generator, time_of_day, day_of_week
+
 
 POOL_NUMBER = 100
 _gen = phonebook_item_generator()
 PHONE_BOOK = [next(_gen ) for _ in range(POOL_NUMBER)]
+
+def new_number():
+    num = next(_gen)
+    PHONE_BOOK.append(num)
+    return num
 
 class UniformSource(object):
     """
@@ -53,22 +61,21 @@ class UserProfileSource(object):
         self.end_time = start_time + duration
         self.rates = profile.rates
         self.socialization = profile.socialization
-        numbers = random.sample(PHONE_BOOK, profile.working_set + 1)
-        self.phone_book = numbers[1:]
-        self.my_phone = numbers[0]
+        self.phone_book = random.sample(PHONE_BOOK, profile.working_set)
+        self.my_phone = new_number()
 
     def __iter__(self):
         return self
 
     def rate(self):
         day_time = time_of_day(self.time)
-        week_day = day_of_week(day_time)
+        week_day = day_of_week(self.time)
         return np.interp(day_time, [x[0] for x in self.rates[week_day]], [x[1] for x in self.rates[week_day]])
         #return list(takewhile(lambda m: m[0] <= day_time, self.rates[week_day]))[-1][1]
 
     def random_threshold(self):
         day_time = time_of_day(self.time)
-        week_day = day_of_week(day_time)
+        week_day = day_of_week(self.time)
         next = list(dropwhile(lambda m: m[0] <= day_time, self.rates[week_day]))
         if len(next) == 0:
             next_time = 24*60*60
@@ -109,3 +116,4 @@ class UserProfileChangeBehaviorSource(UserProfileSource):
         super().step()
         if self.time >= self.when_to_change:
             self.rates = self.profile2.rates
+
