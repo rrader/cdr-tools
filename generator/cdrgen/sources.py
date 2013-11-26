@@ -2,8 +2,9 @@ from itertools import dropwhile
 import random
 
 import numpy as np
+import matplotlib.pyplot as plt
 
-from cdrgen.utils import phonebook_item_generator, time_of_day, day_of_week
+from cdrgen.utils import phonebook_item_generator, time_of_day, day_of_week, RATES_1, RATES_2, rate_variate
 
 
 POOL_NUMBER = 100
@@ -50,6 +51,7 @@ class UserProfile(object):
         self.working_set = working_set
         self.socialization = socialization
 
+TIME_DISCRETIZATION = 60*60
 
 class UserProfileSource(object):
     """
@@ -105,6 +107,33 @@ class UserProfileSource(object):
             dst = random.choice(PHONE_BOOK)
         return self.my_phone, dst, start, answer, end
 
+    def plot_rates(self):
+        row_labels = list('MTWTFSS')
+        hours = list('0123456789AB')
+        column_labels = ["{}am".format(x) for x in hours] + \
+              ["{}pm".format(x) for x in hours]
+
+        data = np.zeros(shape=(7, (24*60*60*4) // TIME_DISCRETIZATION))
+        for i in range(7):
+            for j in range((24*60*60*4) // TIME_DISCRETIZATION):
+                self.time = 24*60*60*4 + i*24*60*60 + j*TIME_DISCRETIZATION/4
+                data[i,j] = self.rate()
+
+        fig, ax = plt.subplots()
+        ax.pcolor(data.transpose(), cmap=plt.cm.Oranges)
+
+        # put the major ticks at the middle of each cell
+        ax.set_xticks(np.arange(data.shape[0])+0.5, minor=False)
+        ax.set_yticks(np.arange(data.shape[1]/4)*4+0.5, minor=False)
+
+        # want a more natural, table-like display
+        ax.invert_yaxis()
+        ax.xaxis.tick_top()
+
+        ax.set_xticklabels(row_labels, minor=False)
+        ax.set_yticklabels(column_labels, minor=False)
+        plt.show()
+
 
 class UserProfileChangeBehaviorSource(UserProfileSource):
     def __init__(self, start_time, duration, profile, profile2, when_to_change):
@@ -116,3 +145,9 @@ class UserProfileChangeBehaviorSource(UserProfileSource):
         super().step()
         if self.time >= self.when_to_change:
             self.rates = self.profile2.rates
+
+if __name__ == "__main__":
+    TIME = 24*60*60*7*4*6
+    #print(rate_variate(RATES_1))
+    UserProfileSource(0, TIME, profile=UserProfile(rate_variate(RATES_1), 10, 0.1)).plot_rates()
+    UserProfileSource(0, TIME, profile=UserProfile(rate_variate(RATES_2), 10, 0.1)).plot_rates()

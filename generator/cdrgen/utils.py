@@ -19,14 +19,18 @@ _r = lambda x, dur=1: float(x)/(60*60*dur)  # count per hour within dur hours
 RATES_1 = [[(_h(0.0),  _r(1/30., 9.5)),   # once per month
             (_h(6.5),  _r(1/5.)),  # once per 5 days
             (_h(7.5),  _r(1)),  # once per hour
-            (_h(8.5),  _r(12)),  # 12 times per hour
+            (_h(8.5),  _r(6)),  # 12 times per hour
+            (_h(10.5),  _r(12)),  # 12 times per hour
+            (_h(15.0),  _r(12)),  # 12 times per hour
             (_h(18.0), _r(1., 3.0)), # 1./(3*60*60) once per hour
             (_h(21.0), _r(1/30., 9.5)),
             (_h(24.0),  0),
             ]
           ]*5 + \
             [[(_h(0.0),  _r(1/30., 11.5)),
-              (_h(8.5),  _r(1)),
+              (_h(8.0),  _r(1/30., 11.5)),
+              (_h(8.5),  _r(2)),
+              (_h(18.0),  _r(2)),
               (_h(18.5),  _r(1/30., 11.5)),
               (_h(24.0),  0),
             ]
@@ -34,20 +38,35 @@ RATES_1 = [[(_h(0.0),  _r(1/30., 9.5)),   # once per month
 
 RATES_2 = [[(_h(0.0),  _r(1/30., 11.5)),   # (1/(9.5*60*60))/30, once per month (10.5 is period within day)
             (_h(6.5),  _r(1/5.)),  # 1./(60*60)/5 once per 5 hours
-            (_h(7.5),  _r(2)),  # 1./(60*60) once per hour
+            (_h(7.5),  _r(2.)),  # 1./(60*60) once per hour
             (_h(8.5),  _r(1/20., 10)),  # once per 20 days
-            (_h(18.0), _r(2)), # 1./(3*60*60) once per hour
-            (_h(19.0), _r(1/30., 11.5)),
+            (_h(17.0),  _r(1/20., 10)),  # once per 20 days
+            (_h(17.5),  _r(1/5., 10)),  # once per 20 days
+            (_h(18.5), _r(2.)), # 1./(3*60*60) once per hour
+            (_h(19.5), _r(1/30., 11.5)),
             (_h(24.0), 0.),
             ]
           ]*5 + \
             [[(_h(0.0),  _r(1, 9.5)),
+              (_h(8.0),  _r(1, 9.5)),
               (_h(8.5),  _r(1)),
+              (_h(18.),  _r(1)),
               (_h(18.5), _r(1/30., 9.5)),
               (_h(24.0), 0.),
             ]
           ]*2
 
+def rate_variate(rates):
+    def randomize_day(day):
+        d = []
+        for y in day:
+            if 0 < y[0] < 24*60*60:
+                d.append((y[0] + random.random()*0.8*60*60-0.4*60*60, y[1] + random.random()/1.e4 - 0.5e-4))
+            else:
+                d.append((y[0], y[1] + random.random()/1.e4 - 0.5e-4))
+        return d
+
+    return [randomize_day(x) for x in rates]
 
 def phonebook_item_generator():
     """Generates unique phone number"""
@@ -120,3 +139,15 @@ def it_merge(*iterators):
         for value in values:
             if value:
                 yield value
+
+def poisson_interval(k, alpha=0.05):
+    """
+    uses chisquared info to get the poisson interval. Uses scipy.stats
+    (imports in function).
+    """
+    from scipy.stats import chi2
+    a = alpha
+    low, high = (chi2.ppf(a/2, 2*k) / 2, chi2.ppf(1-a/2, 2*k + 2) / 2)
+    if k == 0:
+        low = 0.0
+    return low, high

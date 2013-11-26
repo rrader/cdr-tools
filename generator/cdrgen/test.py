@@ -6,7 +6,7 @@ import numpy as np
 import scipy
 from cdrgen.generate import CDRStream
 from cdrgen.sources import UniformSource, UserProfileSource, UserProfile, UserProfileChangeBehaviorSource
-from cdrgen.utils import asterisk_like, csv_to_cdr, time_of_day, day_of_week, window, grouper, RATES_1, it_merge, RATES_2
+from cdrgen.utils import asterisk_like, csv_to_cdr, time_of_day, day_of_week, window, grouper, RATES_1, it_merge, RATES_2, poisson_interval
 import matplotlib.pyplot as plt
 from sklearn.neighbors import KNeighborsRegressor
 
@@ -43,17 +43,6 @@ CURRENT_WINDOW = 5 # to approximate current frequency
 APPROX_WINDOW = 1  # to approximate weekly frequency
 TIME_DISCRETIZATION = 60*60
 
-def poisson_interval(k, alpha=0.05):
-    """
-    uses chisquared info to get the poisson interval. Uses scipy.stats
-    (imports in function).
-    """
-    from scipy.stats import chi2
-    a = alpha
-    low, high = (chi2.ppf(a/2, 2*k) / 2, chi2.ppf(1-a/2, 2*k + 2) / 2)
-    if k == 0:
-        low = 0.0
-    return low, high
 
 class Pattern(object):
     # TODO: replace history with one pattern (and maintain with data + (old-new)/history)
@@ -103,10 +92,11 @@ class Pattern(object):
         current[0] = cdr.start
         current_freq = np.interp(time_of_day(cdr.start), [x*60*60 for x in range(24)],
                                  self.week_history[day])
-        limits = scipy.stats.poisson.interval(0.997, [freq])
+        #limits = scipy.stats.poisson.interval(0.997, [freq])  # integer
+        limits = poisson_interval(freq, 1-0.997)  # float
 
         if not (current_freq <= max(1.0, limits[1])):
-            print(current.max() - current.min(), freq, max(1, limits[1][0]), current_freq)
+            print(current.max() - current.min(), freq, max(1, limits[1]), current_freq)
         return current_freq <= max(1.0, limits[1])
 
     def is_converged(self, cdr):
@@ -126,7 +116,7 @@ class Pattern(object):
 
         data = self.get_pattern()
         fig, ax = plt.subplots()
-        heatmap = ax.pcolor(data.transpose(), cmap=plt.cm.Blues)
+        ax.pcolor(data.transpose(), cmap=plt.cm.Blues)
 
         # put the major ticks at the middle of each cell
         ax.set_xticks(np.arange(data.shape[0])+0.5, minor=False)
@@ -144,9 +134,7 @@ class Pattern(object):
 def pattern(source):
     s = CDRStream(asterisk_like, source)
     s.start()
-    i = 0
     for st in s:
-        i += 1
         cdr = csv_to_cdr(list(csv.reader(StringIO(st), delimiter=','))[0])
         if not users.get(cdr.src):
             users[cdr.src] = Pattern(cdr.src)
@@ -154,8 +142,7 @@ def pattern(source):
         if pattern.is_converged(cdr) and not pattern.is_conform(cdr):
             pattern.alarm(cdr)
         pattern.maintain(cdr)
-    #print(users)
-    print(i)
+
     list(users.items())[0][1].plot()
     list(users.items())[1][1].plot()
 
@@ -167,14 +154,10 @@ def test_daily():
     # Авторегрессионное интегрированное скользящее среднее
     # https://docs.google.com/viewer?url=http%3A%2F%2Fjmlda.org%2Fpapers%2Fdoc%2F2011%2Fno1%2FFadeevEtAl2011Autoreg.pdf
     TIME = 24*60*60*7*4*6
-    #profiles =
-    p1 = UserProfileSource(0, TIME, profile=UserProfile(RATES_1, 10, 0.1))
-    p2 = UserProfileSource(0, TIME, profile=UserProfile(RATES_2, 10, 0.1))
-    profiles = [p1, p2]
-    #print(RATES_1)
-    #p2 = UserProfile(rates2, 10, 0.1)
+    p1 = [UserProfileSource(0, TIME, profile=UserProfile(RATES_1, 10, 0.1)) for x in range(5)]
+    p2 = [UserProfileSource(0, TIME, profile=UserProfile(RATES_2, 10, 0.1)) for x in range(20)]
+    profiles = p1 + p2
     pattern(it_merge(*profiles))
-    #UserProfileChangeBehaviorSource(0, 24*60*60*7*4*6, profile=p, profile2=p2, when_to_change=24*60*60*7*4*3)
 
 if __name__ == "__main__":
     test_daily()
