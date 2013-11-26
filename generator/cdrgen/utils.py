@@ -1,6 +1,6 @@
 from collections import namedtuple
 from datetime import datetime
-from itertools import islice
+from itertools import islice, zip_longest
 import random
 import itertools
 
@@ -14,32 +14,37 @@ phonebook_entry = namedtuple("PhonebookEntry", ["name", "number"])
 cdr = namedtuple("CDR", ["src", "dst", "start", "answer", "end"])
 
 _h = lambda x: x*60*60  # hour
+_r = lambda x, dur=1: float(x)/(60*60*dur)  # count per hour within dur hours
 
-RATES_1 = [[(_h(0.0),  (1/(9.5*60*60))/30),   # (1/(9.5*60*60))/30, once per month (10.5 is period within day)
-            (_h(6.5),  1./(60*60)/5),  # 1./(60*60)/5 once per 5 hours
-            (_h(7.5),  1./(60*60)),  # 1./(60*60) once per hour
-            (_h(8.5),  12./(60*60)),  # 4/(60*60) 4 times per hour
-            (_h(18.0), 1./(3*60*60)), # 1./(3*60*60) once per hour
-            (_h(21.0), (1/(9.5*60*60))/30),
-            (_h(24.0),  0)]
+RATES_1 = [[(_h(0.0),  _r(1/30., 9.5)),   # once per month
+            (_h(6.5),  _r(1/5.)),  # once per 5 days
+            (_h(7.5),  _r(1)),  # once per hour
+            (_h(8.5),  _r(12)),  # 12 times per hour
+            (_h(18.0), _r(1., 3.0)), # 1./(3*60*60) once per hour
+            (_h(21.0), _r(1/30., 9.5)),
+            (_h(24.0),  0),
+            ]
           ]*5 + \
-            [[(_h(0.0),  9.74e-7),
-              (_h(8.5),  1./(60*60)),
-              (_h(18.5),  9.74e-7),
+            [[(_h(0.0),  _r(1/30., 11.5)),
+              (_h(8.5),  _r(1)),
+              (_h(18.5),  _r(1/30., 11.5)),
+              (_h(24.0),  0),
             ]
           ]*2
 
-RATES_2 = [[(_h(0.0),  (1/(11.5*60*60))/30),   # (1/(9.5*60*60))/30, once per month (10.5 is period within day)
-            (_h(6.5),  1./(5*60*60)),  # 1./(60*60)/5 once per 5 hours
-            (_h(7.5),  1./(60*60)),  # 1./(60*60) once per hour
-            (_h(8.5),  1./(10*60*60)),  # 4/(60*60) 4 times per hour
-            (_h(18.0), 2./(60*60)), # 1./(3*60*60) once per hour
-            (_h(19.0), (1/(11.5*60*60))),
-            (_h(24.0), 0.)]
+RATES_2 = [[(_h(0.0),  _r(1/30., 11.5)),   # (1/(9.5*60*60))/30, once per month (10.5 is period within day)
+            (_h(6.5),  _r(1/5.)),  # 1./(60*60)/5 once per 5 hours
+            (_h(7.5),  _r(2)),  # 1./(60*60) once per hour
+            (_h(8.5),  _r(1/20., 10)),  # once per 20 days
+            (_h(18.0), _r(2)), # 1./(3*60*60) once per hour
+            (_h(19.0), _r(1/30., 11.5)),
+            (_h(24.0), 0.),
+            ]
           ]*5 + \
-            [[(_h(0.0),  (1/(9.5*60*60))/30),
-              (_h(8.5),  1./(60*60)),
-              (_h(18.5),  (1/(9.5*60*60))/30),
+            [[(_h(0.0),  _r(1, 9.5)),
+              (_h(8.5),  _r(1)),
+              (_h(18.5), _r(1/30., 9.5)),
+              (_h(24.0), 0.),
             ]
           ]*2
 
@@ -111,6 +116,7 @@ def grouper(n, iterable, fillvalue=None):
 
 
 def it_merge(*iterators):
-    for values in zip(*iterators):
+    for values in zip_longest(*iterators):
         for value in values:
-            yield value
+            if value:
+                yield value

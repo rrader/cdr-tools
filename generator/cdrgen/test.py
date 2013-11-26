@@ -37,10 +37,8 @@ def test(source):
 
 users = {}
 ALARM_THRESHOLD = 0.5
-HISTORY = 6  # in weeks
-# (MIN_THRESHOLD - 1/(HISTORY+1))/MIN_THRESHOLD < ALARM_THRESHOLD
-#MIN_THRESHOLD = 1/(1+HISTORY-ALARM_THRESHOLD-ALARM_THRESHOLD*HISTORY)
-MIN_THRESHOLD = 0.
+HISTORY = 4  # in weeks
+MIN_THRESHOLD = 9.e-6
 CURRENT_WINDOW = 5 # to approximate current frequency
 APPROX_WINDOW = 1  # to approximate weekly frequency
 TIME_DISCRETIZATION = 60*60
@@ -104,18 +102,18 @@ class Pattern(object):
         current = np.roll(self.current, 1)
         current[0] = cdr.start
         current_freq = np.interp(time_of_day(cdr.start), [x*60*60 for x in range(24)],
-                         (self.week_history)[day])
+                                 self.week_history[day])
         limits = scipy.stats.poisson.interval(0.997, [freq])
 
         if not (current_freq <= max(1.0, limits[1])):
-            print(current.max() - current.min(), freq, limits[1], current_freq)
+            print(current.max() - current.min(), freq, max(1, limits[1][0]), current_freq)
         return current_freq <= max(1.0, limits[1])
 
     def is_converged(self, cdr):
         return self.weeks >= HISTORY  # FIXME
 
     def alarm(self, cdr):
-        print("ALARM: user {} behaviour changed".format(cdr.src))
+        print("ALARM: user {} behavior changed".format(cdr.src))
 
     def get_pattern(self):
         return sum(self.data[1:])/HISTORY
@@ -146,7 +144,9 @@ class Pattern(object):
 def pattern(source):
     s = CDRStream(asterisk_like, source)
     s.start()
+    i = 0
     for st in s:
+        i += 1
         cdr = csv_to_cdr(list(csv.reader(StringIO(st), delimiter=','))[0])
         if not users.get(cdr.src):
             users[cdr.src] = Pattern(cdr.src)
@@ -155,9 +155,9 @@ def pattern(source):
             pattern.alarm(cdr)
         pattern.maintain(cdr)
     #print(users)
-
-    #list(users.items())[0][1].plot()
-    #list(users.items())[1][1].plot()
+    print(i)
+    list(users.items())[0][1].plot()
+    list(users.items())[1][1].plot()
 
 
 def test_uniform():
@@ -167,11 +167,13 @@ def test_daily():
     # Авторегрессионное интегрированное скользящее среднее
     # https://docs.google.com/viewer?url=http%3A%2F%2Fjmlda.org%2Fpapers%2Fdoc%2F2011%2Fno1%2FFadeevEtAl2011Autoreg.pdf
     TIME = 24*60*60*7*4*6
+    #profiles =
     p1 = UserProfileSource(0, TIME, profile=UserProfile(RATES_1, 10, 0.1))
     p2 = UserProfileSource(0, TIME, profile=UserProfile(RATES_2, 10, 0.1))
+    profiles = [p1, p2]
     #print(RATES_1)
     #p2 = UserProfile(rates2, 10, 0.1)
-    pattern(it_merge(p1, p2))
+    pattern(it_merge(*profiles))
     #UserProfileChangeBehaviorSource(0, 24*60*60*7*4*6, profile=p, profile2=p2, when_to_change=24*60*60*7*4*3)
 
 if __name__ == "__main__":

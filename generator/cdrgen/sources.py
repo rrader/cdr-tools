@@ -116,4 +116,3 @@ class UserProfileChangeBehaviorSource(UserProfileSource):
         super().step()
         if self.time >= self.when_to_change:
             self.rates = self.profile2.rates
-
