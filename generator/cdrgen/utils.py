@@ -134,11 +134,18 @@ def grouper(n, iterable, fillvalue=None):
     return itertools.zip_longest(*args, fillvalue=fillvalue)
 
 
-def it_merge(*iterators):
-    for values in zip_longest(*iterators):
-        for value in values:
-            if value:
-                yield value
+def it_merge(*iterators, sort):
+    vector = [(k, next(it)) for k, it in enumerate(iterators)]
+    while vector:
+        k, val = sorted(vector, key=lambda x: sort(x[1]))[0]
+        yield val
+        try:
+            vector[k] = (k, next(iterators[k]))
+        except StopIteration:
+            for v in (x for x in vector if x[0] > k):
+                vector[v[0]] = (v[0]-1, v[1])
+            del vector[k]
+
 
 def poisson_interval(k, alpha=0.05):
     """
