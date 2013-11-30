@@ -40,13 +40,13 @@ users = {}
 
 # values needed to recalculate in real time to
 # minimize all values: alarms rate, history length ALPHA and ALARM_THRESHOLD
-ALARM_THRESHOLD = 1.5  # multiply limits
+ALARM_THRESHOLD = 1.2  # multiply limits
 ALPHA_FREQ = 0.8  # mean multipler
 ALPHA_WEEKS = 0.8
 HISTORY = 2  # in weeks
+CURRENT_WINDOW = 15 # to approximate current frequency
 #=====
 MIN_THRESHOLD = 9.e-6
-CURRENT_WINDOW = 15 # to approximate current frequency
 APPROX_WINDOW = 1  # to approximate weekly frequency
 TIME_DISCRETIZATION = 60*60
 
