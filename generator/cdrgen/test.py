@@ -7,7 +7,7 @@ import numpy as np
 import scipy
 from cdrgen.generate import CDRStream
 from cdrgen.sources import UniformSource, UserProfileSource, UserProfile, UserProfileChangeBehaviorSource
-from cdrgen.utils import asterisk_like, csv_to_cdr, time_of_day, day_of_week, window, grouper, RATES_1, it_merge, RATES_2, poisson_interval
+from cdrgen.utils import asterisk_like, csv_to_cdr, time_of_day, day_of_week, window, grouper, RATES_1, it_merge, RATES_2, poisson_interval, moving_average_exponential
 import matplotlib.pyplot as plt
 from sklearn.neighbors import KNeighborsRegressor
 
@@ -37,10 +37,16 @@ def test(source):
 
 
 users = {}
-ALARM_THRESHOLD = 1.2
-HISTORY = 3  # in weeks
+
+# values needed to recalculate in real time to
+# minimize all values: alarms rate, history length ALPHA and ALARM_THRESHOLD
+ALARM_THRESHOLD = 1.5  # multiply limits
+ALPHA_FREQ = 0.8  # mean multipler
+ALPHA_WEEKS = 0.8
+HISTORY = 2  # in weeks
+#=====
 MIN_THRESHOLD = 9.e-6
-CURRENT_WINDOW = 5 # to approximate current frequency
+CURRENT_WINDOW = 15 # to approximate current frequency
 APPROX_WINDOW = 1  # to approximate weekly frequency
 TIME_DISCRETIZATION = 60*60
 
@@ -49,6 +55,7 @@ class Pattern(object):
     # TODO: replace history with one pattern (and maintain with data + (old-new)/history)
     def __init__(self, user):
         self.src = user
+        self.alarms = 0
         self.data = np.zeros(shape=(HISTORY, 7, 24))  # patterns 24x7 (history and one current)
         self.current = np.zeros(CURRENT_WINDOW)
         self.week_history = np.zeros(shape=(7, (24*60*60)//(TIME_DISCRETIZATION//APPROX_WINDOW)))
@@ -94,8 +101,12 @@ class Pattern(object):
 
         current = np.roll(self.current, 1)
         current[0] = cdr.start
+        diffs = np.array([e[0]-e[1] for e in zip(current, current[1:])])
         current_freq = np.interp(time_of_day(cdr.start), [(x+0.5)*60*60 for x in range(24)],
                                  self.week_history[day])
+        current_freq = (60*60)/moving_average_exponential(diffs, ALPHA_FREQ)
+        #print(current_freq)
+        #print(cdr.start, current)
         #current_freq = self.week_history[day][time_of_day(cdr.start)//60//60]
         #limits = scipy.stats.poisson.interval(0.997, [freq])  # integer
         limits = poisson_interval(freq, 1-0.997)  # float
@@ -108,10 +119,14 @@ class Pattern(object):
         return self.weeks >= HISTORY  # FIXME
 
     def alarm(self, cdr):
+        self.alarms += 1
         print("ALARM: user {} behavior changed".format(cdr.src))
 
     def get_pattern(self):
-        return sum(self.data)/HISTORY
+        #print(moving_average_exponential(self.data, 0.75))
+        #print(sum(self.data)/HISTORY)
+        #return sum(self.data)/HISTORY
+        return moving_average_exponential(self.data, ALPHA_WEEKS)
 
     def plot(self):
         row_labels = list('MTWTFSS')
@@ -136,6 +151,7 @@ class Pattern(object):
         plt.show()
 
     def plot_pattern(self):
+        print(self.alarms)
         plt.plot(list(range(24)), self.get_pattern()[0], 'yo-')
         plt.plot(np.asarray(np.matrix(RATES_1[0])[:,0]).reshape(-1)//60//60,
                  np.asarray(np.matrix(RATES_1[0])[:,1]).reshape(-1)*60*60, 'ro-')
@@ -164,7 +180,7 @@ def test_uniform():
 def test_daily():
     # Авторегрессионное интегрированное скользящее среднее
     # https://docs.google.com/viewer?url=http%3A%2F%2Fjmlda.org%2Fpapers%2Fdoc%2F2011%2Fno1%2FFadeevEtAl2011Autoreg.pdf
-    TIME = 24*60*60*7*4*4
+    TIME = 24*60*60*7*4*3
     p1 = [UserProfileSource(0, TIME, profile=UserProfile(RATES_1, 10, 0.1)) for x in range(1)]
     #p2 = [UserProfileSource(0, TIME, profile=UserProfile(RATES_2, 10, 0.1)) for x in range(1)]
     profiles = p1 #+ p2

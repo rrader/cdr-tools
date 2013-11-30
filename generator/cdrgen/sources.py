@@ -87,10 +87,13 @@ class UserProfileSource(object):
 
     def step(self):
         while True:
-            delta = random.expovariate(self.rate())
+            #delta = random.expovariate(self.rate())
+            delta = np.random.poisson(1/self.rate())
             if delta > self.random_threshold() and self.time < self.end_time:
                 self.time += self.random_threshold()
             else:
+                if delta <= 0:
+                    delta = 1
                 self.time += delta
                 break
 
