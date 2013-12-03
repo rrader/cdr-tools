@@ -4,7 +4,7 @@ import random
 import numpy as np
 import matplotlib.pyplot as plt
 
-from cdrgen.utils import phonebook_item_generator, time_of_day, day_of_week, RATES_1, RATES_2, rate_variate
+from cdrgen.utils import phonebook_item_generator, time_of_day, day_of_week, RATES_1, RATES_2, rate_variate, RATES_1m
 
 
 POOL_NUMBER = 100
@@ -153,4 +153,5 @@ if __name__ == "__main__":
     TIME = 24*60*60*7*4*6
     #print(rate_variate(RATES_1))
     UserProfileSource(0, TIME, profile=UserProfile(rate_variate(RATES_1), 10, 0.1)).plot_rates()
-    UserProfileSource(0, TIME, profile=UserProfile(rate_variate(RATES_2), 10, 0.1)).plot_rates()
+    #UserProfileSource(0, TIME, profile=UserProfile(rate_variate(RATES_2), 10, 0.1)).plot_rates()
+    UserProfileSource(0, TIME, profile=UserProfile(rate_variate(RATES_1m), 10, 0.1)).plot_rates()
