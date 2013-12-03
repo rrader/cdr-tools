@@ -37,7 +37,7 @@ users = {}
 
 # values needed to recalculate in real time to
 # minimize all values: alarms rate, history length ALPHA and ALARM_THRESHOLD
-ALARM_THRESHOLD = 1.2  # multiply limits
+ALARM_THRESHOLD = 1.  # multiply limits
 ALPHA_FREQ = 0.8  # mean multipler
 ALPHA_WEEKS = 0.8
 HISTORY = 2  # in weeks
@@ -47,11 +47,11 @@ MIN_THRESHOLD = 9.e-6
 APPROX_WINDOW = 1  # to approximate weekly frequency
 TIME_DISCRETIZATION = 60*60
 
+alarms = 0
 
 class Pattern(object):
     def __init__(self, user):
         self.src = user
-        self.alarms = 0
         self.data = np.zeros(shape=(HISTORY, 7, 24))  # patterns 24x7 (history and one current)
         self.current = np.zeros(CURRENT_WINDOW)
         self.week_history = np.zeros(shape=(7, (24*60*60)//(TIME_DISCRETIZATION//APPROX_WINDOW)))
@@ -60,11 +60,6 @@ class Pattern(object):
         self.class_num = None
 
     def extract_week_history(self):
-        #week = np.ones(shape=(7, 24))*MIN_THRESHOLD
-        #for weekday in range(7):
-        #    for i,item in enumerate(grouper(APPROX_WINDOW, self.week_history[weekday])):
-        #        week[weekday, i] += sum(item)
-        #return week
         return self.week_history
 
     def maintain(self, cdr):
@@ -79,7 +74,6 @@ class Pattern(object):
             self.data[0] = self.extract_week_history()
             self.week_history = np.zeros(shape=(7, (24*60*60)//(TIME_DISCRETIZATION//APPROX_WINDOW)))
             self.weeks += 1
-        #self.week_history[day, time] += 1  # for average frequency
         self.last_day_of_week = day
 
         self.current = np.roll(self.current, 1)  # for instantaneous frequency
@@ -113,7 +107,8 @@ class Pattern(object):
         return self.weeks >= HISTORY  # FIXME
 
     def alarm(self, cdr):
-        self.alarms += 1
+        global alarms
+        alarms += 1
         print("ALARM: user {} behavior changed".format(cdr.src))
 
     def classify(self, class_num):
@@ -145,7 +140,7 @@ class Pattern(object):
         plt.show()
 
     def plot_pattern(self):
-        print(self.alarms)
+        print(alarms)
         plt.plot(list(range(24)), self.get_pattern()[0], 'yo-')
         plt.plot(np.asarray(np.matrix(RATES_1[0])[:,0]).reshape(-1)//60//60,
                  np.asarray(np.matrix(RATES_1[0])[:,1]).reshape(-1)*60*60, 'ro-')
@@ -174,8 +169,6 @@ def recalculate(time):
         return
 
     X = np.matrix([x.get_pattern().ravel() for x in patterns])
-    #km = MiniBatchKMeans(n_clusters=2, init='k-means++')
-    #km.partial_fit(X)
     km = KMeans(n_clusters=2, init='k-means++')
     km.fit(X)
     predicted = km.predict(X)
@@ -219,6 +212,7 @@ def test_daily():
 def test_one(rates):
     TIME = 24*60*60*7*4*2
     process_2(UserProfileSource(0, TIME, profile=UserProfile(rates, 10, 0.1)))
+    list(users.values())[0].plot()
 
 def test_change(rates, rates2):
     TIME = 24*60*60*7*4*2
@@ -226,8 +220,20 @@ def test_change(rates, rates2):
                                               profile2=UserProfile(rates2, 10, 0.1),
                                               when_to_change=TIME//2))
 
+def test_change_group(rates, rates2, rates3, rates4):
+    TIME = 24*60*60*7*4*2
+    p1 = [UserProfileChangeBehaviorSource(0, TIME, profile=UserProfile(rates, 10, 0.1),
+                                              profile2=UserProfile(rates2, 10, 0.1),
+                                              when_to_change=TIME//2) for x in range(10)]
+    p2 = [UserProfileChangeBehaviorSource(0, TIME, profile=UserProfile(rates3, 10, 0.1),
+                                              profile2=UserProfile(rates4, 10, 0.1),
+                                              when_to_change=TIME//2) for x in range(5)]
+    profiles = p1 + p2
+    process_2(it_merge(*profiles, sort=lambda x: x[2]))
+    print(alarms)
 
 if __name__ == "__main__":
+    test_one(RATES_1m)
+    #test_change(RATES_1, RATES_1m)
     #test_daily()
-    #test_one(RATES_1m)
-    test_change(RATES_1, RATES_1m)
+    #test_change_group(RATES_1, RATES_1m, RATES_2, RATES_2)
